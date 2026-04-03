@@ -1,4 +1,4 @@
-
+--ok
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -526,6 +526,8 @@ function OrionLib:MakeWindow(WindowConfig)
 	WindowConfig.IntroIcon = WindowConfig.IntroIcon or "rbxassetid://8834748103"
 	WindowConfig.SearchEnabled = WindowConfig.SearchEnabled ~= false
 	WindowConfig.SearchPlaceholder = WindowConfig.SearchPlaceholder or "Search all tabs..."
+	WindowConfig.Scale = tonumber(WindowConfig.Scale) or 1
+	WindowConfig.Scale = math.clamp(WindowConfig.Scale, 0.7, 1.35)
 	OrionLib.Folder = WindowConfig.ConfigFolder
 	OrionLib.SaveCfg = WindowConfig.SaveConfig
 
@@ -546,6 +548,10 @@ function OrionLib:MakeWindow(WindowConfig)
 	local ApplyTabSearch
 	local ApplyWindowSearch
 	local SetActiveTab
+	local CurrentScale = 1
+	local WindowScale
+	local MobileReopenScale
+	local SetWindowScale
 
 	local TabHolder = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 4), {
 		Size = WindowConfig.SearchEnabled and UDim2.new(1, 0, 1, -136) or UDim2.new(1, 0, 1, -66),
@@ -779,6 +785,10 @@ function OrionLib:MakeWindow(WindowConfig)
 		Size = WindowSize,
 		ClipsDescendants = true
 	}), "Main")
+	WindowScale = Create("UIScale", {
+		Parent = MainWindow,
+		Scale = CurrentScale
+	})
 
 	local MainTint = AddThemeObject(SetProps(MakeElement("Frame"), {
 		Parent = MainWindow,
@@ -998,6 +1008,36 @@ function OrionLib:MakeWindow(WindowConfig)
 		}), "Text"),
 		MakeElement("Corner", 1)
 	})
+	MobileReopenScale = Create("UIScale", {
+		Parent = MobileReopenButton,
+		Scale = CurrentScale
+	})
+
+	SetWindowScale = function(Value)
+		local NextScale = math.clamp(tonumber(Value) or CurrentScale or 1, 0.7, 1.35)
+		if math.abs(NextScale - CurrentScale) < 0.001 then
+			return CurrentScale
+		end
+
+		local ReferenceWidth = MainWindow.Size.X.Offset
+		local ReferenceHeight = MainWindow.Size.Y.Offset
+		local DeltaScale = NextScale - CurrentScale
+
+		MainWindow.Position = UDim2.new(
+			MainWindow.Position.X.Scale,
+			MainWindow.Position.X.Offset - ((ReferenceWidth * DeltaScale) / 2),
+			MainWindow.Position.Y.Scale,
+			MainWindow.Position.Y.Offset - ((ReferenceHeight * DeltaScale) / 2)
+		)
+
+		CurrentScale = NextScale
+		WindowScale.Scale = NextScale
+		MobileReopenScale.Scale = NextScale
+
+		return CurrentScale
+	end
+
+	SetWindowScale(WindowConfig.Scale)
 
 	AddConnection(CloseBtn.MouseButton1Up, function()
 		MainWindow.Visible = false
@@ -1083,6 +1123,14 @@ function OrionLib:MakeWindow(WindowConfig)
 	end	
 
 	local TabFunction = {}
+	function TabFunction:SetScale(Value)
+		return SetWindowScale(Value)
+	end
+
+	function TabFunction:GetScale()
+		return CurrentScale
+	end
+
 	function TabFunction:MakeTab(TabConfig)
 		TabConfig = TabConfig or {}
 		TabConfig.Name = TabConfig.Name or "Tab"
