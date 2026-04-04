@@ -1,4 +1,4 @@
---ok
+--o
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -189,29 +189,9 @@ local function GetUnscaledAbsolute(Value, Scale)
 	return Value / Scale
 end
 
-local function ClampScrollCanvas(ScrollFrame)
-	if not ScrollFrame or not ScrollFrame.Parent then
-		return
-	end
-
-	local Scale = GetGuiScaleFactor(ScrollFrame)
-	local WindowX = GetUnscaledAbsolute(ScrollFrame.AbsoluteWindowSize.X, Scale)
-	local WindowY = GetUnscaledAbsolute(ScrollFrame.AbsoluteWindowSize.Y, Scale)
-	local CanvasX = (ScrollFrame.CanvasSize.X.Scale * WindowX) + ScrollFrame.CanvasSize.X.Offset
-	local CanvasY = (ScrollFrame.CanvasSize.Y.Scale * WindowY) + ScrollFrame.CanvasSize.Y.Offset
-	local MaxX = math.max(0, CanvasX - WindowX)
-	local MaxY = math.max(0, CanvasY - WindowY)
-
-	ScrollFrame.CanvasPosition = Vector2.new(
-		math.clamp(ScrollFrame.CanvasPosition.X, 0, MaxX),
-		math.clamp(ScrollFrame.CanvasPosition.Y, 0, MaxY)
-	)
-end
-
 local function RefreshScrollCanvas(ScrollFrame, ExtraOffset)
 	local Layout = ScrollFrame:FindFirstChildOfClass("UIListLayout")
 	if not Layout then
-		ClampScrollCanvas(ScrollFrame)
 		return
 	end
 
@@ -220,9 +200,6 @@ local function RefreshScrollCanvas(ScrollFrame, ExtraOffset)
 	local CanvasHeight = math.ceil(ContentHeight + GetVerticalPadding(ScrollFrame) + (ExtraOffset or 0))
 
 	ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, CanvasHeight)
-	task.defer(function()
-		ClampScrollCanvas(ScrollFrame)
-	end)
 end
 
 local function RegisterScrollFrame(ScrollFrame, ExtraOffset)
