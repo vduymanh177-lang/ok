@@ -1,4 +1,4 @@
---o
+--ok
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -164,13 +164,108 @@ local function GetVerticalPadding(Element)
 	return Total
 end
 
-local function RefreshScrollCanvas(ScrollFrame, ExtraOffset)
-	local Layout = ScrollFrame:FindFirstChildOfClass("UIListLayout")
-	if not Layout then
+local RegisteredScrollFrames = {}
+
+local function GetGuiScaleFactor(Object)
+	local Scale = 1
+	local Current = Object
+
+	while Current do
+		local UiScale = Current:FindFirstChildOfClass("UIScale")
+		if UiScale then
+			Scale = Scale * UiScale.Scale
+		end
+		Current = Current.Parent
+	end
+
+	return Scale
+end
+
+local function GetUnscaledAbsolute(Value, Scale)
+	if Scale == 0 then
+		return Value
+	end
+
+	return Value / Scale
+end
+
+local function ClampScrollCanvas(ScrollFrame)
+	if not ScrollFrame or not ScrollFrame.Parent then
 		return
 	end
 
-	ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + GetVerticalPadding(ScrollFrame) + (ExtraOffset or 0))
+	local Scale = GetGuiScaleFactor(ScrollFrame)
+	local WindowX = GetUnscaledAbsolute(ScrollFrame.AbsoluteWindowSize.X, Scale)
+	local WindowY = GetUnscaledAbsolute(ScrollFrame.AbsoluteWindowSize.Y, Scale)
+	local CanvasX = (ScrollFrame.CanvasSize.X.Scale * WindowX) + ScrollFrame.CanvasSize.X.Offset
+	local CanvasY = (ScrollFrame.CanvasSize.Y.Scale * WindowY) + ScrollFrame.CanvasSize.Y.Offset
+	local MaxX = math.max(0, CanvasX - WindowX)
+	local MaxY = math.max(0, CanvasY - WindowY)
+
+	ScrollFrame.CanvasPosition = Vector2.new(
+		math.clamp(ScrollFrame.CanvasPosition.X, 0, MaxX),
+		math.clamp(ScrollFrame.CanvasPosition.Y, 0, MaxY)
+	)
+end
+
+local function RefreshScrollCanvas(ScrollFrame, ExtraOffset)
+	local Layout = ScrollFrame:FindFirstChildOfClass("UIListLayout")
+	if not Layout then
+		ClampScrollCanvas(ScrollFrame)
+		return
+	end
+
+	local Scale = GetGuiScaleFactor(ScrollFrame)
+	local ContentHeight = GetUnscaledAbsolute(Layout.AbsoluteContentSize.Y, Scale)
+	local CanvasHeight = math.ceil(ContentHeight + GetVerticalPadding(ScrollFrame) + (ExtraOffset or 0))
+
+	ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, CanvasHeight)
+	task.defer(function()
+		ClampScrollCanvas(ScrollFrame)
+	end)
+end
+
+local function RegisterScrollFrame(ScrollFrame, ExtraOffset)
+	local Record = {
+		Frame = ScrollFrame,
+		ExtraOffset = ExtraOffset
+	}
+	table.insert(RegisteredScrollFrames, Record)
+
+	local function ResolveExtraOffset()
+		if type(Record.ExtraOffset) == "function" then
+			return Record.ExtraOffset()
+		end
+		return Record.ExtraOffset
+	end
+
+	local function RefreshTrackedFrame()
+		RefreshScrollCanvas(ScrollFrame, ResolveExtraOffset())
+	end
+
+	AddConnection(ScrollFrame:GetPropertyChangedSignal("AbsoluteWindowSize"), function()
+		RefreshTrackedFrame()
+	end)
+	AddConnection(ScrollFrame:GetPropertyChangedSignal("Visible"), function()
+		task.defer(RefreshTrackedFrame)
+	end)
+
+	task.defer(RefreshTrackedFrame)
+	return ScrollFrame
+end
+
+local function RefreshRegisteredScrollFrames()
+	for Index = #RegisteredScrollFrames, 1, -1 do
+		local Record = RegisteredScrollFrames[Index]
+		local ScrollFrame = Record.Frame
+
+		if not ScrollFrame or not ScrollFrame.Parent then
+			table.remove(RegisteredScrollFrames, Index)
+		else
+			local ExtraOffset = Record.ExtraOffset
+			RefreshScrollCanvas(ScrollFrame, type(ExtraOffset) == "function" and ExtraOffset() or ExtraOffset)
+		end
+	end
 end
 
 local function Round(Number, Factor)
@@ -393,7 +488,7 @@ CreateElement("ScrollFrame", function(Color, Width)
 		MidImage = "rbxassetid://7445543667",
 		BottomImage = "rbxassetid://7445543667",
 		TopImage = "rbxassetid://7445543667",
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.None,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarImageColor3 = Color,
 		BorderSizePixel = 0,
@@ -574,13 +669,13 @@ function OrionLib:MakeWindow(WindowConfig)
 	local MobileReopenScale
 	local SetWindowScale
 
-	local TabHolder = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 4), {
+	local TabHolder = RegisterScrollFrame(AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 4), {
 		Size = WindowConfig.SearchEnabled and UDim2.new(1, 0, 1, -136) or UDim2.new(1, 0, 1, -66),
 		Position = WindowConfig.SearchEnabled and UDim2.new(0, 0, 0, 78) or UDim2.new(0, 0, 0, 10)
 	}), {
 		MakeElement("List", 0, 8),
 		MakeElement("Padding", 10, 8, 8, 8)
-	}), "Divider")
+	}), "Divider"))
 
 	AddConnection(TabHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 		RefreshScrollCanvas(TabHolder)
@@ -1062,6 +1157,11 @@ function OrionLib:MakeWindow(WindowConfig)
 		CurrentScale = NextScale
 		WindowScale.Scale = NextScale
 		MobileReopenScale.Scale = NextScale
+		task.defer(function()
+			RefreshRegisteredScrollFrames()
+			RunService.Heartbeat:Wait()
+			RefreshRegisteredScrollFrames()
+		end)
 
 		return CurrentScale
 	end
@@ -1099,7 +1199,7 @@ function OrionLib:MakeWindow(WindowConfig)
 			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = WindowSize}):Play()
 			MinimizeBtn.Ico.Image = "rbxassetid://7072719338"
 			wait(.02)
-			MainWindow.ClipsDescendants = false
+			MainWindow.ClipsDescendants = true
 			WindowStuff.Visible = true
 			WindowTopBarLine.Visible = true
 		else
@@ -1220,7 +1320,7 @@ function OrionLib:MakeWindow(WindowConfig)
 			TabFrame.Ico.Image = GetIcon(TabConfig.Icon)
 		end	
 
-		local Container = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 5), {
+		local Container = RegisterScrollFrame(AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255), 5), {
 			Size = UDim2.new(1, -SidebarWidth, 1, -WindowTopBarHeight),
 			Position = UDim2.new(0, SidebarWidth, 0, WindowTopBarHeight),
 			Parent = MainWindow,
@@ -1229,7 +1329,7 @@ function OrionLib:MakeWindow(WindowConfig)
 		}), {
 			MakeElement("List", 0, 8),
 			MakeElement("Padding", 18, 14, 14, 18)
-		}), "Divider")
+		}), "Divider"))
 
 		local EmptyState = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 8), {
 			Size = UDim2.new(1, 0, 0, 56),
@@ -1662,14 +1762,14 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				local DropdownList = MakeElement("List")
 
-				local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
+				local DropdownContainer = RegisterScrollFrame(AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
 					DropdownList
 				}), {
 					Parent = ItemParent,
 					Position = UDim2.new(0, 0, 0, 38),
 					Size = UDim2.new(1, 0, 1, -38),
 					ClipsDescendants = true
-				}), "Divider")
+				}), "Divider"))
 
 				local Click = SetProps(MakeElement("Button"), {
 					Size = UDim2.new(1, 0, 1, 0)
