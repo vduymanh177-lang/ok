@@ -1,4 +1,4 @@
---ok
+--o
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -152,6 +152,25 @@ local function SetChildren(Element, Children)
 		Child.Parent = Element
 	end)
 	return Element
+end
+
+local function GetVerticalPadding(Element)
+	local Total = 0
+	for _, Child in next, Element:GetChildren() do
+		if Child:IsA("UIPadding") then
+			Total = Total + Child.PaddingTop.Offset + Child.PaddingBottom.Offset
+		end
+	end
+	return Total
+end
+
+local function RefreshScrollCanvas(ScrollFrame, ExtraOffset)
+	local Layout = ScrollFrame:FindFirstChildOfClass("UIListLayout")
+	if not Layout then
+		return
+	end
+
+	ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + GetVerticalPadding(ScrollFrame) + (ExtraOffset or 0))
 end
 
 local function Round(Number, Factor)
@@ -374,6 +393,8 @@ CreateElement("ScrollFrame", function(Color, Width)
 		MidImage = "rbxassetid://7445543667",
 		BottomImage = "rbxassetid://7445543667",
 		TopImage = "rbxassetid://7445543667",
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarImageColor3 = Color,
 		BorderSizePixel = 0,
 		ScrollBarThickness = Width,
@@ -562,7 +583,10 @@ function OrionLib:MakeWindow(WindowConfig)
 	}), "Divider")
 
 	AddConnection(TabHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-		TabHolder.CanvasSize = UDim2.new(0, 0, 0, TabHolder.UIListLayout.AbsoluteContentSize.Y + 20)
+		RefreshScrollCanvas(TabHolder)
+	end)
+	task.defer(function()
+		RefreshScrollCanvas(TabHolder)
 	end)
 
 	local CloseBtn = SetChildren(SetProps(MakeElement("Button"), {
@@ -950,6 +974,11 @@ function OrionLib:MakeWindow(WindowConfig)
 			BackgroundTransparency = 0.15
 		}):Play()
 		TabData.Container.Visible = TabData.Button.Visible ~= false
+		if TabData.Container.Visible then
+			task.defer(function()
+				RefreshScrollCanvas(TabData.Container)
+			end)
+		end
 	end
 
 	ApplyWindowSearch = function()
@@ -1236,7 +1265,10 @@ function OrionLib:MakeWindow(WindowConfig)
 		table.insert(AllTabs, TabData)
 
 		AddConnection(Container.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-			Container.CanvasSize = UDim2.new(0, 0, 0, Container.UIListLayout.AbsoluteContentSize.Y + 30)
+			RefreshScrollCanvas(Container)
+		end)
+		task.defer(function()
+			RefreshScrollCanvas(Container)
 		end)
 
 		if FirstTab then
@@ -1775,11 +1807,14 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 
 				AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
-					DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
+					RefreshScrollCanvas(DropdownContainer)
 					if Dropdown.Toggled then
 						ResizeDropdown(true)
 					end
 				end)  
+				task.defer(function()
+					RefreshScrollCanvas(DropdownContainer)
+				end)
 
 				local function AddOptions(Options)
 					for _, Option in pairs(Options) do
@@ -2362,6 +2397,9 @@ function OrionLib:MakeWindow(WindowConfig)
 			AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 				SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
 				SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+				task.defer(function()
+					RefreshScrollCanvas(Container)
+				end)
 			end)
 
 			local SectionFunction = {}
