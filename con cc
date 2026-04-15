@@ -1159,9 +1159,16 @@ function OrionLib:MakeWindow(WindowConfig)
 	end)
 
 	AddConnection(UserInputService.InputBegan, function(Input)
-		if Input.KeyCode == Enum.KeyCode.LeftControl and UIHidden == true then
-			MainWindow.Visible = true
-			MobileReopenButton.Visible = false
+		if Input.KeyCode == Enum.KeyCode.LeftControl or Input.KeyCode == Enum.KeyCode.RightControl then
+			-- True toggle: đang ẩn thì mở, đang mở thì ẩn
+			if UIHidden then
+				MainWindow.Visible = true
+				MobileReopenButton.Visible = false
+				UIHidden = false
+			else
+				MainWindow.Visible = false
+				UIHidden = true
+			end
 		elseif WindowConfig.SearchEnabled and not UIHidden and Input.KeyCode == Enum.KeyCode.F and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) and SearchInput then
 			SearchInput:CaptureFocus()
 		end
