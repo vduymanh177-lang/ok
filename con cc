@@ -1,4 +1,4 @@
---o
+print("mine")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -618,6 +618,7 @@ function OrionLib:MakeWindow(WindowConfig)
 	WindowConfig.Icon = WindowConfig.Icon or "rbxassetid://8834748103"
 	WindowConfig.IntroIcon = WindowConfig.IntroIcon or "rbxassetid://8834748103"
 	WindowConfig.SearchEnabled = WindowConfig.SearchEnabled ~= false
+	WindowConfig.StartHidden = WindowConfig.StartHidden or false
 	WindowConfig.SearchPlaceholder = WindowConfig.SearchPlaceholder or "Search all tabs..."
 	WindowConfig.Scale = tonumber(WindowConfig.Scale) or 1
 	WindowConfig.Scale = math.clamp(WindowConfig.Scale, 0.7, 1.35)
@@ -1224,10 +1225,13 @@ function OrionLib:MakeWindow(WindowConfig)
 		LoadSequenceText:Destroy()
 	end 
 
-	if WindowConfig.IntroEnabled then
-		LoadSequence()
-	end	
-
+	if WindowConfig.StartHidden then
+	MainWindow.Visible = false
+	MobileReopenButton.Visible = false
+	UIHidden = true
+elseif WindowConfig.IntroEnabled then
+	LoadSequence()
+end
 	local TabFunction = {}
 	function TabFunction:SetScale(Value)
 		return SetWindowScale(Value)
@@ -2546,10 +2550,22 @@ function OrionLib:MakeWindow(WindowConfig)
 		end
 		return ElementFunction   
 	end  
-	
-	return TabFunction
-end   
+	function TabFunction:ToggleMenu()
+	local newState = not MainWindow.Visible
+	MainWindow.Visible = newState
+	MobileReopenButton.Visible = false
+	UIHidden = not newState
+end
 
+function TabFunction:SetMenuVisible(state)
+	MainWindow.Visible = state
+	MobileReopenButton.Visible = false
+	UIHidden = not state
+end
+
+return TabFunction
+end
+	
 local Configs_HUB = {
   Cor_Hub = Color3.fromRGB(15, 15, 15),
   Cor_Options = Color3.fromRGB(15, 15, 15),
