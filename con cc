@@ -380,6 +380,27 @@ end
 
 local WhitelistedMouse = {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2,Enum.UserInputType.MouseButton3,Enum.UserInputType.Touch}
 local BlacklistedKeys = {Enum.KeyCode.Unknown,Enum.KeyCode.W,Enum.KeyCode.A,Enum.KeyCode.S,Enum.KeyCode.D,Enum.KeyCode.Up,Enum.KeyCode.Left,Enum.KeyCode.Down,Enum.KeyCode.Right,Enum.KeyCode.Slash,Enum.KeyCode.Tab,Enum.KeyCode.Backspace,Enum.KeyCode.Escape}
+local ToggleKeyAliasMap = {
+	Alt = {"LeftAlt", "RightAlt"},
+	Ctrl = {"LeftControl", "RightControl"},
+	Control = {"LeftControl", "RightControl"},
+}
+local ToggleKeyDisplayMap = {
+	Alt = "Alt",
+	LeftAlt = "Alt",
+	RightAlt = "RightAlt",
+	Ctrl = "Ctrl",
+	Control = "Ctrl",
+	LeftControl = "LeftCtrl",
+	RightControl = "RightCtrl",
+	LeftShift = "LeftShift",
+	RightShift = "RightShift",
+	Insert = "Insert",
+	Home = "Home",
+	End = "End",
+	Delete = "Delete",
+	Backquote = "Backquote",
+}
 
 local function CheckKey(Table, Key)
 	for _, v in next, Table do
@@ -387,6 +408,38 @@ local function CheckKey(Table, Key)
 			return true
 		end
 	end
+end
+
+local function NormalizeToggleKey(Key)
+	if typeof(Key) == "EnumItem" then
+		return Key.Name
+	end
+
+	if type(Key) == "string" and Key ~= "" then
+		return Key
+	end
+
+	return "Alt"
+end
+
+local function GetToggleKeyNames(Key)
+	local Normalized = NormalizeToggleKey(Key)
+	return ToggleKeyAliasMap[Normalized] or {Normalized}
+end
+
+local function IsToggleKeyPressed(Input, Key)
+	for _, KeyName in ipairs(GetToggleKeyNames(Key)) do
+		if Input.KeyCode == Enum.KeyCode[KeyName] then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function GetToggleKeyDisplayName(Key)
+	local Normalized = NormalizeToggleKey(Key)
+	return ToggleKeyDisplayMap[Normalized] or Normalized
 end
 
 CreateElement("Corner", function(Scale, Offset)
@@ -620,6 +673,7 @@ function OrionLib:MakeWindow(WindowConfig)
 	WindowConfig.SearchEnabled = WindowConfig.SearchEnabled ~= false
 	WindowConfig.StartHidden = WindowConfig.StartHidden or false
 	WindowConfig.SearchPlaceholder = WindowConfig.SearchPlaceholder or "Search all tabs..."
+	WindowConfig.ToggleKey = NormalizeToggleKey(WindowConfig.ToggleKey or "Alt")
 	WindowConfig.Scale = tonumber(WindowConfig.Scale) or 1
 	WindowConfig.Scale = math.clamp(WindowConfig.Scale, 0.7, 1.35)
 	OrionLib.Folder = WindowConfig.ConfigFolder
@@ -1152,14 +1206,18 @@ function OrionLib:MakeWindow(WindowConfig)
 		UIHidden = true
 		OrionLib:MakeNotification({
 			Name = "Interface hidden",
-			Content = "Press LeftCtrl to reopen the window.",
+			Content = "Press " .. GetToggleKeyDisplayName(WindowConfig.ToggleKey) .. " to reopen the window.",
 			Time = 5
 		})
 		WindowConfig.CloseCallback()
 	end)
 
 	AddConnection(UserInputService.InputBegan, function(Input)
-		if Input.KeyCode == Enum.KeyCode.LeftControl or Input.KeyCode == Enum.KeyCode.RightControl then
+		if UserInputService:GetFocusedTextBox() then
+			return
+		end
+
+		if IsToggleKeyPressed(Input, WindowConfig.ToggleKey) then
 			-- True toggle: đang ẩn thì mở, đang mở thì ẩn
 			if UIHidden then
 				MainWindow.Visible = true
@@ -2568,6 +2626,19 @@ function TabFunction:SetMenuVisible(state)
 	MainWindow.Visible = state
 	MobileReopenButton.Visible = false
 	UIHidden = not state
+end
+
+function TabFunction:SetToggleKey(key)
+	WindowConfig.ToggleKey = NormalizeToggleKey(key)
+	return WindowConfig.ToggleKey
+end
+
+function TabFunction:GetToggleKey()
+	return WindowConfig.ToggleKey
+end
+
+function TabFunction:GetToggleKeyDisplayName()
+	return GetToggleKeyDisplayName(WindowConfig.ToggleKey)
 end
 
 return TabFunction
